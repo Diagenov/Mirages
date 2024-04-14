@@ -123,7 +123,7 @@ namespace Mirages
 
         static void WriteLiquid(List<byte> data, ITile tile, ref Flag1 flag1, ref Flag3 flag3)
         {
-            if (tile.liquid > 0)
+            if (tile.liquid == 0)
             {
                 return;
             }
