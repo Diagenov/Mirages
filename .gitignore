@@ -362,3 +362,6 @@ FodyWeavers.xsd
 
 Mirages/bin/Debug/net6.0/*
 !Mirages/bin/Debug/net6.0/Mirages.dll
+
+Test/bin/Debug/net6.0/*
+!Test/bin/Debug/net6.0/Test.dll

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Library</OutputType>
+		<TargetFramework>net6.0</TargetFramework>
+		<RootNamespace>Test</RootNamespace>
+		<AssemblyName>Test</AssemblyName>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Reference Include="ModFramework">
+			<HintPath>..\References\ModFramework.dll</HintPath>
+		</Reference>
+
+		<Reference Include="OTAPI">
+			<HintPath>..\References\OTAPI.dll</HintPath>
+		</Reference>
+
+		<Reference Include="OTAPI.Runtime">
+			<HintPath>..\References\OTAPI.Runtime.dll</HintPath>
+		</Reference>
+
+		<Reference Include="TerrariaServer">
+			<HintPath>..\References\TerrariaServer.dll</HintPath>
+		</Reference>
+
+		<Reference Include="TShockAPI">
+			<HintPath>..\References\TShockAPI.dll</HintPath>
+		</Reference>
+		
+		<Reference Include="Mirages">
+			<HintPath>..\Mirages\bin\Debug\net6.0\Mirages.dll</HintPath>
+		</Reference>
+	</ItemGroup>
+
+</Project>

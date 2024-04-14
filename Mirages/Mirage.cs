@@ -27,6 +27,9 @@ namespace Mirages
             get => Tiles[X - x, Y - y];
         }
 
+        public Mirage(int x, int y, int width, int height) : this(new Rectangle(x, y, width, height))
+        {
+        }
         public Mirage(Rectangle area) 
         {
             Area = area;
@@ -51,7 +54,52 @@ namespace Mirages
             return list.GetEnumerator();
         }
 
-        public byte[] GetPacket10Data()
+        public void SendAll(bool tileFrame, Func<TSPlayer, bool> predicate = null)
+        {
+            Send(tileFrame, predicate == null ? 
+                TShock.Players : 
+                TShock.Players.Where(i => predicate(i)).ToArray());
+        }
+
+        public void Send(bool tileFrame, params TSPlayer[] players)
+        {
+            if (players == null || players.Length == 0 || players.All(i => i == null || !i.ConnectionAlive))
+            {
+                return;
+            }
+            var data = GetPacket10Data();
+
+            foreach (var i in players)
+            {
+                if (i == null || !i.ConnectionAlive)
+                    continue;
+
+                var socket = Netplay.Clients[i.Index].Socket;
+                var callback = (SocketSendCallback)Netplay.Clients[i.Index].ServerWriteCallBack;
+
+                Hooks.NetMessage.InvokeSendBytes(
+                    socket,
+                    data,
+                    0,
+                    data.Length,
+                    callback,
+                    null,
+                    i.Index);
+
+                if (!tileFrame)
+                    continue;
+
+                i.SendData(
+                    PacketTypes.TileFrameSection, 
+                    null, 
+                    Netplay.GetSectionX(X), 
+                    Netplay.GetSectionY(Y), 
+                    Netplay.GetSectionX(X + Width), 
+                    Netplay.GetSectionY(Y + Height));
+            }
+        }
+
+        byte[] GetPacket10Data()
         {
             byte[] data;
             using (var s = new MemoryStream())
@@ -82,51 +130,6 @@ namespace Mirages
                     w.Write(length);
                 }
                 return s.ToArray();
-            }
-        }
-
-        public void SendAll(bool tileframe, Func<TSPlayer, bool> predicate = null)
-        {
-            Send(tileframe, predicate == null ? 
-                TShock.Players : 
-                TShock.Players.Where(i => predicate(i)).ToArray());
-        }
-
-        public void Send(bool tileframe, params TSPlayer[] players)
-        {
-            if (players == null || players.Length == 0 || players.All(i => i == null || !i.ConnectionAlive))
-            {
-                return;
-            }
-            var data = GetPacket10Data();
-
-            foreach (var i in players)
-            {
-                if (i == null || !i.ConnectionAlive)
-                    continue;
-
-                var socket = Netplay.Clients[i.Index].Socket;
-                var callback = (SocketSendCallback)Netplay.Clients[i.Index].ServerWriteCallBack;
-
-                Hooks.NetMessage.InvokeSendBytes(
-                    socket,
-                    data,
-                    0,
-                    data.Length,
-                    callback,
-                    null,
-                    i.Index);
-
-                if (!tileframe)
-                    continue;
-
-                i.SendData(
-                    PacketTypes.TileFrameSection, 
-                    null, 
-                    Netplay.GetSectionX(X), 
-                    Netplay.GetSectionY(Y), 
-                    Netplay.GetSectionX(X + Width), 
-                    Netplay.GetSectionY(Y + Height));
             }
         }
     }
