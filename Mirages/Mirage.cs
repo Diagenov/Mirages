@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO.Compression;
 using OTAPI;
 using Terraria;
+using Terraria.ID;
 using Terraria.Net.Sockets;
 using TShockAPI;
 using Microsoft.Xna.Framework;
@@ -24,7 +25,7 @@ namespace Mirages
 
         public MirageTile this[int x, int y]
         {
-            get => Tiles[X - x, Y - y];
+            get => Tiles[x - X, y - Y];
         }
 
         public Mirage(int x, int y, int width, int height) : this(new Rectangle(x, y, width, height))
@@ -67,8 +68,48 @@ namespace Mirages
             {
                 return;
             }
-            var data = GetPacket10Data();
+            Send(players, GetPacket10Data());
 
+            if (!tileFrame)
+            {
+                return;
+            }
+            foreach (var i in players)
+            {
+                if (i == null || !i.ConnectionAlive)
+                    continue;
+
+                i.SendData(
+                    PacketTypes.TileFrameSection, 
+                    null, 
+                    Netplay.GetSectionX(X), 
+                    Netplay.GetSectionY(Y), 
+                    Netplay.GetSectionX(X + Width), 
+                    Netplay.GetSectionY(Y + Height));
+            }
+        }
+
+        public void SendAll(TileChangeType type, Func<TSPlayer, bool> predicate = null)
+        {
+            Send(type, predicate == null ?
+                TShock.Players :
+                TShock.Players.Where(i => predicate(i)).ToArray());
+        }
+
+        public void Send(TileChangeType type, params TSPlayer[] players)
+        {
+            if (players == null || players.Length == 0 || players.All(i => i == null || !i.ConnectionAlive))
+            {
+                return;
+            }
+            foreach (var i in GetPacket20Data(type))
+            {
+                Send(players, i);
+            }
+        }
+
+        void Send(TSPlayer[] players, byte[] data)
+        {
             foreach (var i in players)
             {
                 if (i == null || !i.ConnectionAlive)
@@ -85,17 +126,6 @@ namespace Mirages
                     callback,
                     null,
                     i.Index);
-
-                if (!tileFrame)
-                    continue;
-
-                i.SendData(
-                    PacketTypes.TileFrameSection, 
-                    null, 
-                    Netplay.GetSectionX(X), 
-                    Netplay.GetSectionY(Y), 
-                    Netplay.GetSectionX(X + Width), 
-                    Netplay.GetSectionY(Y + Height));
             }
         }
 
@@ -125,6 +155,43 @@ namespace Mirages
                     w.BaseStream.Position = 2;
                     w.Write((byte)10);
                     w.Write(data);
+                    var length = (ushort)w.BaseStream.Position;
+                    w.BaseStream.Position = 0;
+                    w.Write(length);
+                }
+                return s.ToArray();
+            }
+        }
+
+        List<byte[]> GetPacket20Data(TileChangeType type)
+        {
+            var data = new List<byte[]>();
+            var countX = (int)Math.Ceiling(Width / 255f);
+            var countY = (int)Math.Ceiling(Height / 255f);
+
+            for (int i = 0; i < countX; i++)
+            {
+                for (int j = 0; j < countY; j++)
+                {
+                    var x = X + (i * 255);
+                    var y = Y + (j * 255);
+                    var width = Math.Min(255, Width - (i * 255));
+                    var height = Math.Min(255, Height - (j * 255));
+                    data.Add(GetPacket20Data(x, y, width, height, type));
+                }
+            }
+            return data;
+        }
+
+        byte[] GetPacket20Data(int x, int y, int width, int height, TileChangeType type)
+        {
+            using (var s = new MemoryStream())
+            {
+                using (var w = new BinaryWriter(s)) // учесть то, что длина-ширина не должна быть больше 255
+                {
+                    w.BaseStream.Position = 2;
+                    w.Write((byte)20);
+                    w.Write(this, x, y, width, height, type);
                     var length = (ushort)w.BaseStream.Position;
                     w.BaseStream.Position = 0;
                     w.Write(length);

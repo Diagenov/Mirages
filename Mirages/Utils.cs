@@ -6,9 +6,82 @@ using Terraria.ID;
 
 namespace Mirages
 {
-    public static class Utils
+    internal static class Utils
     {
-        public static void Write(this BinaryWriter w, Mirage mirage)
+        internal static void Write(this BinaryWriter w, Mirage mirage, int x, int y, int width, int height, TileChangeType type)
+        {
+            w.Write((short)x);
+            w.Write((short)y);
+            w.Write((byte)width);
+            w.Write((byte)height);
+            w.Write((byte)type);
+
+            for (int i = x; i < x + width; i++)
+            {
+                for (int j = y; j < y + height; j++)
+                {
+                    w.Write(mirage[i, j]);
+                }
+            }
+        }
+
+        static void Write(this BinaryWriter w, MirageTile tile)
+        {
+            w.Write(new BitsByte(
+                tile.active(),
+                false,
+                tile.wall > 0,
+                tile.liquid > 0,
+                tile.wire(),
+                tile.halfBrick(),
+                tile.actuator(),
+                tile.inActive()));
+
+            w.Write(new BitsByte(
+                tile.wire2(),
+                tile.wire3(),
+                tile.active() && tile.color() > 0,
+                tile.wall > 0 && tile.wallColor() > 0,
+                tile.slope() == 1 || tile.slope() == 3,
+                tile.slope() == 2 || tile.slope() == 3,
+                tile.slope() == 4,
+                tile.wire4()));
+
+            w.Write(new BitsByte(
+                tile.fullbrightBlock(),
+                tile.fullbrightWall(),
+                tile.invisibleBlock(),
+                tile.invisibleWall()));
+
+            if (tile.active() && tile.color() > 0)
+            {
+                w.Write(tile.color());
+            }
+            if (tile.wall > 0 && tile.wallColor() > 0)
+            {
+                w.Write(tile.wallColor());
+            }
+            if (tile.active())
+            {
+                w.Write(tile.type);
+                if (Main.tileFrameImportant[tile.type])
+                {
+                    w.Write(tile.frameX);
+                    w.Write(tile.frameY);
+                }
+            }
+            if (tile.wall > 0)
+            {
+                w.Write(tile.wall);
+            }
+            if (tile.liquid > 0)
+            {
+                w.Write(tile.liquid);
+                w.Write(tile.liquidType());
+            }
+        }
+
+        internal static void Write(this BinaryWriter w, Mirage mirage)
         {
             var last = default(ITile);
             var same = default(short);

@@ -88,6 +88,13 @@ namespace WireCensor
                     }
                 }
                 mirage.SendAll(true);
+
+                foreach (var i in mirage)
+                {
+                    i.active(true);
+                    i.type = 0;
+                }
+                mirage.SendAll(Terraria.ID.TileChangeType.None);
             }
         }
     }
