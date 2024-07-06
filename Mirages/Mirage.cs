@@ -59,50 +59,32 @@ namespace Mirages
             return list;
         }
 
-        public Tuple<SetSignResult, Point> SetSign(int left, int top, int signID, string text, SignType type = SignType.Sign, bool ignoreAnotherSigns = false, byte color = 0, bool fullbright = false, bool invisible = false, bool inActive = false, params Tile2x2Point[] points)
+        public Tuple<SetObjectResult, Point> SetSign(int left, int top, int signID, string text, SignType type = SignType.Sign, bool ignoreAnotherSign = false, byte color = 0, bool fullbright = false, bool invisible = false, bool inActive = false, params Tile2x2Point[] points)
         {
-            if (!Area.Contains(left, top))
-            {
-                return Tuple.Create(SetSignResult.SignOutsideMirageArea, new Point(left, top));
-            }
-            var result = this[left, top].SetSignText(signID, text, type, ignoreAnotherSigns);
+            return Set2x2Object(
+               left,
+               top,
+               color,
+               fullbright,
+               invisible,
+               inActive,
+               points,
+               (i)    => i.SetSignText(signID, text, type, ignoreAnotherSign),
+               (i, j) => i.SetSignTile(type, j, ignoreAnotherSign));
+        }
 
-            if (result != SetSignResult.Success)
-            {
-                return Tuple.Create(result, new Point(left, top));
-            }
-            if (points == null || points.Length == 0)
-            {
-                points = Enum.GetValues<Tile2x2Point>();
-            }
-            var list = new List<Tile2x2Point>(points);
-
-            if (!list.Contains(Tile2x2Point.LeftTop))
-            {
-                list.Add(Tile2x2Point.LeftTop);
-            }
-            foreach (var p in list)
-            {
-                int x = left;
-                int y = top;
-                Set2x2Delta(ref x, ref y, p);
-
-                if (!Area.Contains(x, y))
-                {
-                    return Tuple.Create(SetSignResult.SignOutsideMirageArea, new Point(x, y));
-                }
-                result = this[x, y].SetSignTile(type, p, ignoreAnotherSigns);
-
-                if (result != SetSignResult.Success)
-                {
-                    return Tuple.Create(result, new Point(x, y));
-                }
-                this[x, y].inActive(inActive);
-                this[x, y].color(color);
-                this[x, y].invisibleBlock(invisible);
-                this[x, y].fullbrightBlock(fullbright);
-            }
-            return Tuple.Create(SetSignResult.Success, new Point(left, top));
+        public Tuple<SetObjectResult, Point> SetChest(int left, int top, int chestID, string name, ChestType type = ChestType.Chest, IEnumerable<SlotItem> content = null, bool ignoreAnotherChest = false, byte color = 0, bool fullbright = false, bool invisible = false, bool inActive = false, params Tile2x2Point[] points)
+        {
+            return Set2x2Object(
+                left, 
+                top, 
+                color, 
+                fullbright, 
+                invisible, 
+                inActive, 
+                points, 
+                (i)    => i.SetChest(chestID, name, type, ignoreAnotherChest, content.ToArray()),
+                (i, j) => i.SetChestTile(type, j, ignoreAnotherChest));
         }
 
         public void SendAll(bool tileFrame, Func<TSPlayer, bool> predicate = null)
@@ -228,7 +210,53 @@ namespace Mirages
                 return s.ToArray();
             }
         }
-    
+
+        Tuple<SetObjectResult, Point> Set2x2Object(int left, int top, byte color, bool fullbright, bool invisible, bool inActive, Tile2x2Point[] points, Func<MirageTile, SetObjectResult> funcOne, Func<MirageTile, Tile2x2Point, SetObjectResult> funcTwo)
+        {
+            if (!Area.Contains(left, top))
+            {
+                return Tuple.Create(SetObjectResult.ObjectOutsideMirageArea, new Point(left, top));
+            }
+            var result = funcOne(this[left, top]);
+
+            if (result != SetObjectResult.Success)
+            {
+                return Tuple.Create(result, new Point(left, top));
+            }
+            if (points == null || points.Length == 0)
+            {
+                points = Enum.GetValues<Tile2x2Point>();
+            }
+            var list = new List<Tile2x2Point>(points);
+
+            if (!list.Contains(Tile2x2Point.LeftTop))
+            {
+                list.Add(Tile2x2Point.LeftTop);
+            }
+            foreach (var p in list)
+            {
+                int x = left;
+                int y = top;
+                Set2x2Delta(ref x, ref y, p);
+
+                if (!Area.Contains(x, y))
+                {
+                    return Tuple.Create(SetObjectResult.ObjectOutsideMirageArea, new Point(x, y));
+                }
+                result = funcTwo(this[x, y], p);
+
+                if (result != SetObjectResult.Success)
+                {
+                    return Tuple.Create(result, new Point(x, y));
+                }
+                this[x, y].inActive(inActive);
+                this[x, y].color(color);
+                this[x, y].invisibleBlock(invisible);
+                this[x, y].fullbrightBlock(fullbright);
+            }
+            return Tuple.Create(SetObjectResult.Success, new Point(left, top));
+        }
+
         void Set2x2Delta(ref int X, ref int Y, Tile2x2Point refPoint)
         {
             switch (refPoint)
@@ -268,6 +296,14 @@ namespace Mirages
             { SignType.GoldenGravestone, 85 },
             { SignType.GoldenHeadstone, 85 },
         });
+        public static readonly ReadOnlyDictionary<ChestType, int> ChestTypes = new ReadOnlyDictionary<ChestType, int>(new Dictionary<ChestType, int>
+        {
+            { ChestType.Chest, 21 },
+            { ChestType.GoldChest, 21 },
+            { ChestType.ShadowChest, 21 },
+            { ChestType.Barrel, 21 },
+            { ChestType.Trash, 21 },
+        });
 
         public int X;
         public int Y;
@@ -277,7 +313,7 @@ namespace Mirages
 
         public int ChestID = -1;
         public string ChestName = "";
-        public List<SlotItem> ChestItems = new List<SlotItem>();
+        public List<SlotItem> ChestContent = new List<SlotItem>();
 
         public MirageTile(int x, int y) : base(Main.tile[x, y] ?? new Tile())
         {
@@ -306,32 +342,32 @@ namespace Mirages
                         {
                             continue;
                         }
-                        ChestItems.Add(new SlotItem(i, j.netID, j.stack, j.prefix));
+                        ChestContent.Add(new SlotItem(i, j.netID, j.stack, j.prefix));
                     }
                     ChestName = chest.name;
                 }
             }
         }
 
-        public SetSignResult SetSignText(int signID, string text, SignType type = SignType.Sign, bool ignoreAnotherSigns = false)
+        public SetObjectResult SetSignText(int signID, string text, SignType type = SignType.Sign, bool ignoreAnotherSign = false)
         {
-            if (!ignoreAnotherSigns && SignID > -1 && !string.IsNullOrWhiteSpace(SignText))
+            if (!ignoreAnotherSign && SignID > -1 && !string.IsNullOrWhiteSpace(SignText))
             {
-                return SetSignResult.OccupiedByAnotherSign;
+                return SetObjectResult.OccupiedByAnotherObject;
             }
-            SetSignTile(type, Tile2x2Point.LeftTop, ignoreAnotherSigns);
+            SetSignTile(type, Tile2x2Point.LeftTop, ignoreAnotherSign);
 
             SignID = signID;
             SignText = text;
 
-            return SetSignResult.Success;
+            return SetObjectResult.Success;
         }
 
-        public SetSignResult SetSignTile(SignType type = SignType.Sign, Tile2x2Point point = Tile2x2Point.LeftTop, bool ignoreAnotherSigns = false)
+        public SetObjectResult SetSignTile(SignType type = SignType.Sign, Tile2x2Point point = Tile2x2Point.LeftTop, bool ignoreAnotherSign = false)
         {
-            if (!ignoreAnotherSigns && SignID > -1 && !string.IsNullOrWhiteSpace(SignText) && point != Tile2x2Point.LeftTop)
+            if (!ignoreAnotherSign && SignID > -1 && !string.IsNullOrWhiteSpace(SignText) && point != Tile2x2Point.LeftTop)
             {
-                return SetSignResult.OccupiedByAnotherSign;
+                return SetObjectResult.OccupiedByAnotherObject;
             }
             int typeN = (int)type;
 
@@ -358,7 +394,53 @@ namespace Mirages
             {
                 frameX += (short)(typeN * 36);
             }
-            return SetSignResult.Success;
+            return SetObjectResult.Success;
+        }
+
+        public SetObjectResult SetChest(int chestID, string name, ChestType type = ChestType.Chest, bool ignoreAnotherChest = false, params SlotItem[] content)
+        {
+            if (!ignoreAnotherChest && ChestID > -1 && (ChestContent.Count > 0 || !string.IsNullOrWhiteSpace(ChestName)))
+            {
+                return SetObjectResult.OccupiedByAnotherObject;
+            }
+            SetChestTile(type, Tile2x2Point.LeftTop, ignoreAnotherChest);
+
+            if (content != null && content.Length > 0)
+            {
+                ChestContent.AddRange(content);
+            }
+            ChestID = chestID;
+            ChestName = name;
+
+            return SetObjectResult.Success;
+        }
+
+        public SetObjectResult SetChestTile(ChestType type = ChestType.Chest, Tile2x2Point point = Tile2x2Point.LeftTop, bool ignoreAnotherChest = false)
+        {
+            if (!ignoreAnotherChest && ChestID > -1 && (ChestContent.Count > 0 || !string.IsNullOrWhiteSpace(ChestName)) && point != Tile2x2Point.LeftTop)
+            {
+                return SetObjectResult.OccupiedByAnotherObject;
+            }
+            int typeN = (int)type;
+
+            sTileHeader = 32;
+            bTileHeader = bTileHeader2 = bTileHeader3 = 0;
+            this.type = (ushort)ChestTypes[type];
+
+            frameX = 0;
+            frameY = 0;
+
+            if (point == Tile2x2Point.LeftBottom || point == Tile2x2Point.RightBottom)
+            {
+                frameY += 18;
+            }
+            if (point == Tile2x2Point.RightTop || point == Tile2x2Point.RightBottom)
+            {
+                frameX += 18;
+            }
+            frameX += (short)(typeN * 36);
+
+            return SetObjectResult.Success;
         }
 
         public void SendSignAll(bool TBD, Func<TSPlayer, bool> predicate = null)
@@ -387,6 +469,27 @@ namespace Mirages
             }
         }
 
+        public void SendChestContentAll(Func<TSPlayer, bool> predicate = null)
+        {
+            SendChestContent(predicate == null ?
+                TShock.Players :
+                TShock.Players.Where(i => predicate(i)).ToArray());
+        }
+
+        public void SendChestContent(params TSPlayer[] players)
+        {
+            if (players == null || players.Length == 0 || players.All(i => i == null || !i.ConnectionAlive))
+            {
+                return;
+            }
+            for (int i = 0; i < 40; i++)
+            {
+                var index = ChestContent.FindIndex(j => j.SlotID == i);
+                SendChestItem(index > -1 ? ChestContent[index] : new SlotItem(i, 0), players);
+            }
+            players.SendPacket(GetPacket33Data(ChestName ?? ""));
+        }
+
         public void SendChestItemAll(byte slotID, Func<TSPlayer, bool> predicate = null)
         {
             SendChestItem(slotID, predicate == null ?
@@ -396,8 +499,17 @@ namespace Mirages
 
         public void SendChestItem(byte slotID, params TSPlayer[] players)
         {
-            var index = ChestItems.FindIndex(i => i.SlotID == slotID);
+            var index = ChestContent.FindIndex(i => i.SlotID == slotID);
             if (index == -1)
+            {
+                return;
+            }
+            SendChestItem(ChestContent[index], players);
+        }
+
+        public void SendChestItem(SlotItem item, params TSPlayer[] players)
+        {
+            if (item.SlotID < 0 || item.SlotID >= 40)
             {
                 return;
             }
@@ -405,7 +517,7 @@ namespace Mirages
             {
                 return;
             }
-            players.SendPacket(GetPacket32Data(ChestItems[index]));
+            players.SendPacket(GetPacket32Data(item));
         }
 
         public void SendChestNameAll(Func<TSPlayer, bool> predicate = null)
@@ -497,6 +609,32 @@ namespace Mirages
             }
         }
 
+        byte[] GetPacket33Data(string name)
+        {
+            using (var s = new MemoryStream())
+            {
+                using (var w = new BinaryWriter(s))
+                {
+                    w.BaseStream.Position = 2;
+                    w.Write((byte)33);
+
+                    w.Write((short)ChestID);
+                    w.Write((short)X);
+                    w.Write((short)Y);
+                    w.Write((byte)name.Length);
+
+                    if (name.Length > 0 && name.Length <= 20)
+                    {
+                        w.Write(name);
+                    }
+                    var length = (ushort)w.BaseStream.Position;
+                    w.BaseStream.Position = 0;
+                    w.Write(length);
+                }
+                return s.ToArray();
+            }
+        }
+
         byte[] GetPacket69Data()
         {
             using (var s = new MemoryStream())
@@ -504,7 +642,7 @@ namespace Mirages
                 using (var w = new BinaryWriter(s))
                 {
                     w.BaseStream.Position = 2;
-                    w.Write((byte)47);
+                    w.Write((byte)69);
 
                     w.Write((short)ChestID);
                     w.Write((short)X);
@@ -527,7 +665,7 @@ namespace Mirages
                 using (var w = new BinaryWriter(s))
                 {
                     w.BaseStream.Position = 2;
-                    w.Write((byte)47);
+                    w.Write((byte)80);
 
                     w.Write((byte)0);
                     w.Write((short)ChestID);
@@ -557,12 +695,12 @@ namespace Mirages
         }
     }
 
-    public enum SetSignResult : byte
+    public enum SetObjectResult : byte
     {
         Success = 0, 
         InvalidTileID = 1, 
-        OccupiedByAnotherSign = 2,
-        SignOutsideMirageArea = 3,
+        OccupiedByAnotherObject = 2,
+        ObjectOutsideMirageArea = 3,
     }
 
     public enum SignType : int
@@ -581,6 +719,15 @@ namespace Mirages
         GoldenGraveMarker = 8,
         GoldenGravestone = 9,
         GoldenHeadstone = 10,
+    }
+
+    public enum ChestType : int
+    {
+        Chest = 0,
+        GoldChest = 1,
+        ShadowChest = 3,
+        Barrel = 5,
+        Trash = 6,
     }
 
     public enum Tile2x2Point : byte

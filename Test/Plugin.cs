@@ -7,6 +7,7 @@ using TShockAPI;
 using Microsoft.Xna.Framework;
 using Mirages;
 using System.Linq;
+using Terraria.ID;
 
 namespace WireCensor
 {
@@ -40,7 +41,7 @@ namespace WireCensor
             {
                 return;
             }
-            if (e.MsgID == PacketTypes.SignRead)
+            if (e.MsgID == PacketTypes.SignRead || e.MsgID == PacketTypes.ChestGetContents)
             {
                 var X = 0;
                 var Y = 0;
@@ -53,12 +54,22 @@ namespace WireCensor
                         Y = point.Y;
                     }
                 }
-                var find = mirages.Find(i => i.Signs.Any(j => j.X == X && j.Y == Y));
+                var find = mirages.Find(i => (e.MsgID == PacketTypes.SignRead ? i.Signs : i.Chests).Any(j => j.X == X && j.Y == Y));
                 if (find == null)
                 {
                     return;
                 }
-                find.Signs.Find(j => j.X == X && j.Y == Y).SendSign(false, player);
+                var tile = find.Chests.Find(j => j.X == X && j.Y == Y);
+
+                if (e.MsgID == PacketTypes.SignRead)
+                {
+                    tile.SendSign(false, player);
+                }
+                else
+                {
+                    tile.SendChestContent(player);
+                }
+                e.Handled = true;
                 return;
             }
             if (e.MsgID != PacketTypes.MassWireOperation)
@@ -91,6 +102,10 @@ namespace WireCensor
                 var signs = new List<Tile2x2Point>();
                 var signInActive = false;
 
+                var chests = new List<Tile2x2Point>();
+                var content = new List<SlotItem>();
+                var chestInActive = false;
+
                 var mirage = new Mirage(area);
                 mirages.Add(mirage);
 
@@ -100,26 +115,36 @@ namespace WireCensor
                     {
                         i.wire(true);
                         signs.Add(Tile2x2Point.LeftTop);
+                        chests.Add(Tile2x2Point.LeftTop);
+                        content.Add(new SlotItem(0, ItemID.Bass, 59));
                     }
                     if ((mode & 2) == 2)
                     {
                         i.wire2(true);
                         signs.Add(Tile2x2Point.LeftBottom);
+                        chests.Add(Tile2x2Point.LeftBottom);
+                        content.Add(new SlotItem(11, ItemID.TrashCan, 3));
                     }
                     if ((mode & 4) == 4)
                     {
                         i.wire3(true);
                         signs.Add(Tile2x2Point.RightTop);
+                        chests.Add(Tile2x2Point.RightTop);
+                        content.Add(new SlotItem(25, ItemID.Barrel, 1));
                     }
                     if ((mode & 8) == 8)
                     {
                         i.wire4(true);
                         signs.Add(Tile2x2Point.RightBottom);
+                        chests.Add(Tile2x2Point.RightBottom);
+                        content.Add(new SlotItem(31, ItemID.WireKite, 999));
                     }
                     if ((mode & 16) == 16)
                     {
                         i.actuator(true);
                         signInActive = true;
+                        chestInActive = true;
+                        content.Add(new SlotItem(38, ItemID.Actuator, 146));
                     }
                 }
                 mirage.SendAll(true);
@@ -129,7 +154,7 @@ namespace WireCensor
                     i.active(true);
                     i.ResetToType(0);
                 }
-                mirage.SendAll(Terraria.ID.TileChangeType.None);
+                mirage.SendAll(TileChangeType.None);
 
                 if (mirage.Height > 2 && mirage.Width > 2)
                 {
@@ -147,6 +172,24 @@ namespace WireCensor
                         signs.ToArray());
                     
                     player.SendInfoMessage($"SignResult: [c/ffffff:{result.Item1}], X: [c/ffffff:{result.Item2.X}], Y: [c/ffffff:{result.Item2.Y}]");
+                }
+                if (mirage.Height > 5 && mirage.Width > 5)
+                {
+                    var result = mirage.SetChest(
+                        mirage.X + 3,
+                        mirage.Y + 3,
+                        1000,
+                        "D:",
+                        ChestType.Barrel,
+                        content,
+                        true,
+                        13,
+                        false,
+                        false,
+                        chestInActive,
+                        signs.ToArray());
+
+                    player.SendInfoMessage($"ChestResult: [c/ffffff:{result.Item1}], X: [c/ffffff:{result.Item2.X}], Y: [c/ffffff:{result.Item2.Y}]");
                 }
                 mirage.SendAll(true);
             }
