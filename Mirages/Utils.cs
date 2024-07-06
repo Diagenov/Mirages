@@ -3,11 +3,45 @@ using System.IO;
 using System.Collections.Generic;
 using Terraria;
 using Terraria.ID;
+using Terraria.Net.Sockets;
+using OTAPI;
+using TShockAPI;
 
 namespace Mirages
 {
     internal static class Utils
     {
+        internal static void SendPacket(this IEnumerable<TSPlayer> players, byte[] data)
+        {
+            foreach (var i in players)
+            {
+                if (i == null)
+                {
+                    continue;
+                }
+                i.SendPacket(data);
+            }
+        }
+
+        internal static void SendPacket(this TSPlayer player, byte[] data)
+        {
+            if (!player.ConnectionAlive)
+            {
+                return;
+            }
+            var socket = Netplay.Clients[player.Index].Socket;
+            var callback = (SocketSendCallback)Netplay.Clients[player.Index].ServerWriteCallBack;
+
+            Hooks.NetMessage.InvokeSendBytes(
+                socket,
+                data,
+                0,
+                data.Length,
+                callback,
+                null,
+                player.Index);
+        }
+
         internal static void Write(this BinaryWriter w, Mirage mirage, int x, int y, int width, int height, TileChangeType type)
         {
             w.Write((short)x);
@@ -338,7 +372,7 @@ namespace Mirages
                 w.Write((short)i.SignID);
                 w.Write((short)i.X);
                 w.Write((short)i.Y);
-                w.Write(i.SignText);
+                w.Write(i.SignText ?? "");
             }
         }
 
@@ -349,7 +383,7 @@ namespace Mirages
                 w.Write((short)i.ChestID);
                 w.Write((short)i.X);
                 w.Write((short)i.Y);
-                w.Write(i.ChestName);
+                w.Write(i.ChestName ?? "");
             }
         }
 

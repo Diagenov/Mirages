@@ -5,10 +5,8 @@ using System.IO.Compression;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using OTAPI;
 using Terraria;
 using Terraria.ID;
-using Terraria.Net.Sockets;
 using TShockAPI;
 using Microsoft.Xna.Framework;
 
@@ -23,6 +21,8 @@ namespace Mirages
         public int Y => Area.Y;
         public short Width => (short)Area.Width;
         public short Height => (short)Area.Height;
+        public List<MirageTile> Signs => GetList(t => t.SignID > -1);
+        public List<MirageTile> Chests => GetList(t => t.ChestID > -1);
 
         public MirageTile this[int x, int y]
         {
@@ -45,15 +45,18 @@ namespace Mirages
         }
 
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-        public IEnumerator<MirageTile> GetEnumerator()
+        public IEnumerator<MirageTile> GetEnumerator() => GetList().GetEnumerator();
+
+        public List<MirageTile> GetList(Func<MirageTile, bool> predicate = null)
         {
             var list = new List<MirageTile>();
             for (int j = 0; j < Height; j++)
                 for (int i = 0; i < Width; i++)
                 {
-                    list.Add(Tiles[i, j]);
+                    if (predicate == null || predicate(Tiles[i, j]))
+                        list.Add(Tiles[i, j]);
                 }
-            return list.GetEnumerator();
+            return list;
         }
 
         public Tuple<SetSignResult, Point> SetSign(int left, int top, int signID, string text, SignType type = SignType.Sign, bool ignoreAnotherSigns = false, byte color = 0, bool fullbright = false, bool invisible = false, bool inActive = false, params Tile2x2Point[] points)
@@ -102,14 +105,6 @@ namespace Mirages
             return Tuple.Create(SetSignResult.Success, new Point(left, top));
         }
 
-        //аналогично для сундуков
-
-        //также для сундуков стоит добавить фантомное взаимодействие...
-
-        //добавить ли фантомное взаимодействие табличкам???
-
-        //добавить метод получения оригинала (то, что в действительности на месте фантомной области)
-
         public void SendAll(bool tileFrame, Func<TSPlayer, bool> predicate = null)
         {
             Send(tileFrame, predicate == null ? 
@@ -123,7 +118,7 @@ namespace Mirages
             {
                 return;
             }
-            Send(players, GetPacket10Data());
+            players.SendPacket(GetPacket10Data());
 
             if (!tileFrame)
             {
@@ -159,28 +154,7 @@ namespace Mirages
             }
             foreach (var i in GetPacket20Data(type))
             {
-                Send(players, i);
-            }
-        }
-
-        void Send(TSPlayer[] players, byte[] data)
-        {
-            foreach (var i in players)
-            {
-                if (i == null || !i.ConnectionAlive)
-                    continue;
-
-                var socket = Netplay.Clients[i.Index].Socket;
-                var callback = (SocketSendCallback)Netplay.Clients[i.Index].ServerWriteCallBack;
-
-                Hooks.NetMessage.InvokeSendBytes(
-                    socket,
-                    data,
-                    0,
-                    data.Length,
-                    callback,
-                    null,
-                    i.Index);
+                players.SendPacket(i);
             }
         }
 
@@ -385,6 +359,185 @@ namespace Mirages
                 frameX += (short)(typeN * 36);
             }
             return SetSignResult.Success;
+        }
+
+        public void SendSignAll(bool TBD, Func<TSPlayer, bool> predicate = null)
+        {
+            SendSign(TBD, predicate == null ?
+                TShock.Players :
+                TShock.Players.Where(i => predicate(i)).ToArray());
+        }
+
+        public void SendSign(bool TBD, params TSPlayer[] players)
+        {
+            if (players == null || players.Length == 0 || players.All(i => i == null || !i.ConnectionAlive))
+            {
+                return;
+            }
+            var data = GetPacket47Data(TBD);
+
+            foreach (var i in players)
+            {
+                if (i == null)
+                { 
+                    continue; 
+                }
+                data[data.Length - 2] = (byte)i.Index;
+                i.SendPacket(data);
+            }
+        }
+
+        public void SendChestItemAll(byte slotID, Func<TSPlayer, bool> predicate = null)
+        {
+            SendChestItem(slotID, predicate == null ?
+                TShock.Players :
+                TShock.Players.Where(i => predicate(i)).ToArray());
+        }
+
+        public void SendChestItem(byte slotID, params TSPlayer[] players)
+        {
+            var index = ChestItems.FindIndex(i => i.SlotID == slotID);
+            if (index == -1)
+            {
+                return;
+            }
+            if (players == null || players.Length == 0 || players.All(i => i == null || !i.ConnectionAlive))
+            {
+                return;
+            }
+            players.SendPacket(GetPacket32Data(ChestItems[index]));
+        }
+
+        public void SendChestNameAll(Func<TSPlayer, bool> predicate = null)
+        {
+            SendChestName(predicate == null ?
+                TShock.Players :
+                TShock.Players.Where(i => predicate(i)).ToArray());
+        }
+
+        public void SendChestName(params TSPlayer[] players)
+        {
+            if (players == null || players.Length == 0 || players.All(i => i == null || !i.ConnectionAlive))
+            {
+                return;
+            }
+            players.SendPacket(GetPacket69Data());
+        }
+
+        public void SendChestSyncIndexAll(Func<TSPlayer, bool> predicate = null)
+        {
+            SendChestSyncIndex(predicate == null ?
+                TShock.Players :
+                TShock.Players.Where(i => predicate(i)).ToArray());
+        }
+
+        public void SendChestSyncIndex(params TSPlayer[] players)
+        {
+            if (players == null || players.Length == 0 || players.All(i => i == null || !i.ConnectionAlive))
+            {
+                return;
+            }
+            var data = GetPacket80Data();
+
+            foreach (var i in players)
+            {
+                if (i == null)
+                {
+                    continue;
+                }
+                data[data.Length - 3] = (byte)i.Index;
+                i.SendPacket(data);
+            }
+        }
+
+        byte[] GetPacket47Data(bool TBD)
+        {
+            using (var s = new MemoryStream())
+            {
+                using (var w = new BinaryWriter(s))
+                {
+                    w.BaseStream.Position = 2;
+                    w.Write((byte)47);
+
+                    w.Write((short)SignID);
+                    w.Write((short)X);
+                    w.Write((short)Y);
+                    w.Write(SignText ?? "");
+                    w.Write((byte)0);
+                    w.Write(TBD);
+
+                    var length = (ushort)w.BaseStream.Position;
+                    w.BaseStream.Position = 0;
+                    w.Write(length);
+                }
+                return s.ToArray();
+            }
+        }
+
+        byte[] GetPacket32Data(SlotItem item)
+        {
+            using (var s = new MemoryStream())
+            {
+                using (var w = new BinaryWriter(s))
+                {
+                    w.BaseStream.Position = 2;
+                    w.Write((byte)32);
+
+                    w.Write((short)ChestID);
+                    w.Write((byte)item.SlotID);
+                    w.Write((short)item.Stack);
+                    w.Write((byte)item.Prefix);
+                    w.Write((short)item.NetID);
+
+                    var length = (ushort)w.BaseStream.Position;
+                    w.BaseStream.Position = 0;
+                    w.Write(length);
+                }
+                return s.ToArray();
+            }
+        }
+
+        byte[] GetPacket69Data()
+        {
+            using (var s = new MemoryStream())
+            {
+                using (var w = new BinaryWriter(s))
+                {
+                    w.BaseStream.Position = 2;
+                    w.Write((byte)47);
+
+                    w.Write((short)ChestID);
+                    w.Write((short)X);
+                    w.Write((short)Y);
+                    w.Write(ChestName ?? "");
+                    w.Write((byte)0);
+
+                    var length = (ushort)w.BaseStream.Position;
+                    w.BaseStream.Position = 0;
+                    w.Write(length);
+                }
+                return s.ToArray();
+            }
+        }
+
+        byte[] GetPacket80Data()
+        {
+            using (var s = new MemoryStream())
+            {
+                using (var w = new BinaryWriter(s))
+                {
+                    w.BaseStream.Position = 2;
+                    w.Write((byte)47);
+
+                    w.Write((byte)0);
+                    w.Write((short)ChestID);
+
+                    var length = (ushort)w.BaseStream.Position;
+                    w.BaseStream.Position = 0;
+                    w.Write(length);
+                }
+                return s.ToArray();
+            }
         }
     }
 

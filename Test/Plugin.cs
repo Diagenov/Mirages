@@ -6,12 +6,15 @@ using TerrariaApi.Server;
 using TShockAPI;
 using Microsoft.Xna.Framework;
 using Mirages;
+using System.Linq;
 
 namespace WireCensor
 {
     [ApiVersion(2, 1)]
     public class Plugin : TerrariaPlugin
     {
+        static List<Mirage> mirages = new List<Mirage>();
+
         public Plugin(Main game) : base(game)
         {
         }
@@ -37,17 +40,38 @@ namespace WireCensor
             {
                 return;
             }
+            if (e.MsgID == PacketTypes.SignRead)
+            {
+                var X = 0;
+                var Y = 0;
+                using (var s = new MemoryStream(e.Msg.readBuffer, e.Index, e.Length))
+                {
+                    using (var r = new BinaryReader(s))
+                    {
+                        var point = r.ReadPoint16();
+                        X = point.X;
+                        Y = point.Y;
+                    }
+                }
+                var find = mirages.Find(i => i.Signs.Any(j => j.X == X && j.Y == Y));
+                if (find == null)
+                {
+                    return;
+                }
+                find.Signs.Find(j => j.X == X && j.Y == Y).SendSign(false, player);
+                return;
+            }
             if (e.MsgID != PacketTypes.MassWireOperation)
             {
                 return;
             }
-            using (var reader = new BinaryReader(new MemoryStream(e.Msg.readBuffer, e.Index, e.Length)))
+            using (var r = new BinaryReader(new MemoryStream(e.Msg.readBuffer, e.Index, e.Length)))
             {
-                int startX = reader.ReadInt16();
-                int startY = reader.ReadInt16();
-                int endX = reader.ReadInt16();
-                int endY = reader.ReadInt16();
-                var mode = reader.ReadByte();
+                int startX = r.ReadInt16();
+                int startY = r.ReadInt16();
+                int endX = r.ReadInt16();
+                int endY = r.ReadInt16();
+                var mode = r.ReadByte();
 
                 if ((mode & (1 | 2 | 4 | 8 | 16)) == 0)
                 {
@@ -68,6 +92,8 @@ namespace WireCensor
                 var signInActive = false;
 
                 var mirage = new Mirage(area);
+                mirages.Add(mirage);
+
                 foreach (var i in mirage)
                 {
                     if ((mode & 1) == 1)
