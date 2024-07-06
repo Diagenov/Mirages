@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Collections.Generic;
 using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
@@ -63,28 +64,36 @@ namespace WireCensor
                     Math.Abs(endX - startX) + 1,
                     Math.Abs(endY - startY) + 1);
 
+                var signs = new List<Tile2x2Point>();
+                var signInActive = false;
+
                 var mirage = new Mirage(area);
                 foreach (var i in mirage)
                 {
                     if ((mode & 1) == 1)
                     {
                         i.wire(true);
+                        signs.Add(Tile2x2Point.LeftTop);
                     }
                     if ((mode & 2) == 2)
                     {
                         i.wire2(true);
+                        signs.Add(Tile2x2Point.LeftBottom);
                     }
                     if ((mode & 4) == 4)
                     {
                         i.wire3(true);
+                        signs.Add(Tile2x2Point.RightTop);
                     }
                     if ((mode & 8) == 8)
                     {
                         i.wire4(true);
+                        signs.Add(Tile2x2Point.RightBottom);
                     }
                     if ((mode & 16) == 16)
                     {
                         i.actuator(true);
+                        signInActive = true;
                     }
                 }
                 mirage.SendAll(true);
@@ -92,9 +101,28 @@ namespace WireCensor
                 foreach (var i in mirage)
                 {
                     i.active(true);
-                    i.type = 0;
+                    i.ResetToType(0);
                 }
                 mirage.SendAll(Terraria.ID.TileChangeType.None);
+
+                if (mirage.Height > 2 && mirage.Width > 2)
+                {
+                    var result = mirage.SetSign(
+                        mirage.X + 1, 
+                        mirage.Y + 1, 
+                        900, 
+                        ":D", 
+                        SignType.Sign, 
+                        true, 
+                        26,
+                        false,
+                        false,
+                        signInActive,
+                        signs.ToArray());
+                    
+                    player.SendInfoMessage($"SignResult: [c/ffffff:{result.Item1}], X: [c/ffffff:{result.Item2.X}], Y: [c/ffffff:{result.Item2.Y}]");
+                }
+                mirage.SendAll(true);
             }
         }
     }

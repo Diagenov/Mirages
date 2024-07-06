@@ -28,10 +28,10 @@
 		<Reference Include="TShockAPI">
 			<HintPath>..\References\TShockAPI.dll</HintPath>
 		</Reference>
-		
-		<Reference Include="Mirages">
-			<HintPath>..\Mirages\bin\Debug\net6.0\Mirages.dll</HintPath>
-		</Reference>
+
+    <Reference Include="Mirages">
+      <HintPath>..\Mirages\bin\Debug\net6.0\Mirages.dll</HintPath>
+    </Reference>
 	</ItemGroup>
 
 </Project>

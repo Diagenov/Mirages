@@ -83,10 +83,13 @@ namespace Mirages
 
         internal static void Write(this BinaryWriter w, Mirage mirage)
         {
-            var last = default(ITile);
+            var last = default(MirageTile);
             var same = default(short);
             var data = new List<byte>();
             var flag = Flag1.None;
+
+            var chests = new List<MirageTile>();
+            var signs = new List<MirageTile>();
 
             w.Write(mirage.X);
             w.Write(mirage.Y);
@@ -100,6 +103,14 @@ namespace Mirages
                     same++;
                     continue;
                 }
+                if (i.ChestID > -1)
+                {
+                    chests.Add(i);
+                }
+                if (i.SignID > -1)
+                {
+                    signs.Add(i);
+                }
                 if (last != null)
                 {
                     w.Write(data, ref same, ref flag);
@@ -107,8 +118,13 @@ namespace Mirages
                 last = WriteTile(i, ref flag, data);
             }
             w.Write(data, ref same, ref flag);
-            w.Write((short)0); // chests count
-            w.Write((short)0); // signs count
+            
+            w.Write((short)chests.Count);
+            w.WriteChests(chests);
+
+            w.Write((short)signs.Count);
+            w.WriteSigns(signs);
+
             w.Write((short)0); // entities count 
         }
 
@@ -134,7 +150,7 @@ namespace Mirages
             same = 0;
         }
 
-        static ITile WriteTile(ITile tile, ref Flag1 flag1, List<byte> data)
+        static MirageTile WriteTile(MirageTile tile, ref Flag1 flag1, List<byte> data)
         {
             var flag2 = Flag2.None;
             var flag3 = Flag3.None;
@@ -151,7 +167,7 @@ namespace Mirages
             return tile;
         }
 
-        static void WriteBlock(List<byte> data, ITile tile, ref Flag1 flag1, ref Flag3 flag3)
+        static void WriteBlock(List<byte> data, MirageTile tile, ref Flag1 flag1, ref Flag3 flag3)
         {
             if (!tile.active())
             {
@@ -178,7 +194,7 @@ namespace Mirages
             }
         }
 
-        static void WriteWall(List<byte> data, ITile tile, ref Flag1 flag1, ref Flag3 flag3)
+        static void WriteWall(List<byte> data, MirageTile tile, ref Flag1 flag1, ref Flag3 flag3)
         {
             if (tile.wall == 0)
             {
@@ -194,7 +210,7 @@ namespace Mirages
             }
         }
 
-        static void WriteLiquid(List<byte> data, ITile tile, ref Flag1 flag1, ref Flag3 flag3)
+        static void WriteLiquid(List<byte> data, MirageTile tile, ref Flag1 flag1, ref Flag3 flag3)
         {
             if (tile.liquid == 0)
             {
@@ -220,7 +236,7 @@ namespace Mirages
             data.Add(tile.liquid);
         }
 
-        static void WriteWires(ITile tile, ref Flag2 flag2, ref Flag3 flag3)
+        static void WriteWires(MirageTile tile, ref Flag2 flag2, ref Flag3 flag3)
         {
             if (tile.wire())
             {
@@ -244,7 +260,7 @@ namespace Mirages
             }
         }
 
-        static void WriteSlopes(ITile tile, ref Flag2 flag2)
+        static void WriteSlopes(MirageTile tile, ref Flag2 flag2)
         {
             if (tile.halfBrick())
             {
@@ -267,7 +283,7 @@ namespace Mirages
             }
         }
 
-        static void WriteOther(List<byte> data, ITile tile, ref Flag3 flag3, ref Flag4 flag4)
+        static void WriteOther(List<byte> data, MirageTile tile, ref Flag3 flag3, ref Flag4 flag4)
         {
             if (tile.wall > 255)
             {
@@ -312,6 +328,28 @@ namespace Mirages
             {
                 flag1 |= Flag1.Flag2;
                 data.Insert(0, (byte)flag2);
+            }
+        }
+
+        static void WriteSigns(this BinaryWriter w, List<MirageTile> signs)
+        {
+            foreach (var i in signs)
+            {
+                w.Write((short)i.SignID);
+                w.Write((short)i.X);
+                w.Write((short)i.Y);
+                w.Write(i.SignText);
+            }
+        }
+
+        static void WriteChests(this BinaryWriter w, List<MirageTile> chests)
+        {
+            foreach (var i in chests)
+            {
+                w.Write((short)i.ChestID);
+                w.Write((short)i.X);
+                w.Write((short)i.Y);
+                w.Write(i.ChestName);
             }
         }
 
