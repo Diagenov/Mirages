@@ -305,14 +305,32 @@ namespace Mirages
             { ChestType.Trash, 21 },
         });
 
-        public int X;
-        public int Y;
+        public int X { get; private set; }
+        public int Y { get; private set; }
 
-        public int SignID = -1;
-        public string SignText = "";
+        public int SignID
+        {
+            get => signID;
+        }
+        public string SignText
+        {
+            get => signText ?? "";
+            set => signText = value;
+        }
+        int signID = -1;
+        string signText = "";
 
-        public int ChestID = -1;
-        public string ChestName = "";
+        public int ChestID
+        {
+            get => chestID;
+        }
+        public string ChestName
+        {
+            get => chestName ?? "";
+            set => chestName = value;
+        }
+        int chestID = -1;
+        string chestName = "";
         public List<SlotItem> ChestContent = new List<SlotItem>();
 
         public MirageTile(int x, int y) : base(Main.tile[x, y] ?? new Tile())
@@ -322,19 +340,19 @@ namespace Mirages
 
             if (SignTypes.Values.Contains(type) && frameX % 36 == 0 && frameY % 36 == 0)
             {
-                SignID = Sign.ReadSign(x, y);
-                if (SignID > -1)
+                signID = Sign.ReadSign(x, y);
+                if (signID > -1)
                 {
-                    SignText = Main.sign[SignID].text;
+                    signText = Main.sign[signID].text;
                 }
             }
 
             if ((TileID.Sets.BasicChest[type] || type == 88) && frameX % (type == 88 ? 54 : 36) == 0 && frameY % 36 == 0)
             {
-                ChestID = Chest.FindChest(x, y);
-                if (ChestID > -1)
+                chestID = Chest.FindChest(x, y);
+                if (chestID > -1)
                 {
-                    var chest = Main.chest[ChestID];
+                    var chest = Main.chest[chestID];
                     for (int i = 0; i < chest.item.Length; i++)
                     {
                         var j = chest.item[i];
@@ -344,28 +362,28 @@ namespace Mirages
                         }
                         ChestContent.Add(new SlotItem(i, j.netID, j.stack, j.prefix));
                     }
-                    ChestName = chest.name;
+                    chestName = chest.name;
                 }
             }
         }
 
         public SetObjectResult SetSignText(int signID, string text, SignType type = SignType.Sign, bool ignoreAnotherSign = false)
         {
-            if (!ignoreAnotherSign && SignID > -1 && !string.IsNullOrWhiteSpace(SignText))
+            if (!ignoreAnotherSign && this.signID > -1 && !string.IsNullOrWhiteSpace(signText))
             {
                 return SetObjectResult.OccupiedByAnotherObject;
             }
             SetSignTile(type, Tile2x2Point.LeftTop, ignoreAnotherSign);
 
-            SignID = signID;
-            SignText = text;
+            this.signID = signID;
+            signText = text;
 
             return SetObjectResult.Success;
         }
 
         public SetObjectResult SetSignTile(SignType type = SignType.Sign, Tile2x2Point point = Tile2x2Point.LeftTop, bool ignoreAnotherSign = false)
         {
-            if (!ignoreAnotherSign && SignID > -1 && !string.IsNullOrWhiteSpace(SignText) && point != Tile2x2Point.LeftTop)
+            if (!ignoreAnotherSign && signID > -1 && !string.IsNullOrWhiteSpace(signText) && point != Tile2x2Point.LeftTop)
             {
                 return SetObjectResult.OccupiedByAnotherObject;
             }
@@ -399,7 +417,7 @@ namespace Mirages
 
         public SetObjectResult SetChest(int chestID, string name, ChestType type = ChestType.Chest, bool ignoreAnotherChest = false, params SlotItem[] content)
         {
-            if (!ignoreAnotherChest && ChestID > -1 && (ChestContent.Count > 0 || !string.IsNullOrWhiteSpace(ChestName)))
+            if (!ignoreAnotherChest && this.chestID > -1 && (ChestContent.Count > 0 || !string.IsNullOrWhiteSpace(chestName)))
             {
                 return SetObjectResult.OccupiedByAnotherObject;
             }
@@ -409,15 +427,15 @@ namespace Mirages
             {
                 ChestContent.AddRange(content);
             }
-            ChestID = chestID;
-            ChestName = name;
+            this.chestID = chestID;
+            chestName = name;
 
             return SetObjectResult.Success;
         }
 
         public SetObjectResult SetChestTile(ChestType type = ChestType.Chest, Tile2x2Point point = Tile2x2Point.LeftTop, bool ignoreAnotherChest = false)
         {
-            if (!ignoreAnotherChest && ChestID > -1 && (ChestContent.Count > 0 || !string.IsNullOrWhiteSpace(ChestName)) && point != Tile2x2Point.LeftTop)
+            if (!ignoreAnotherChest && chestID > -1 && (ChestContent.Count > 0 || !string.IsNullOrWhiteSpace(chestName)) && point != Tile2x2Point.LeftTop)
             {
                 return SetObjectResult.OccupiedByAnotherObject;
             }
@@ -487,7 +505,7 @@ namespace Mirages
                 var index = ChestContent.FindIndex(j => j.SlotID == i);
                 SendChestItem(index > -1 ? ChestContent[index] : new SlotItem(i, 0), players);
             }
-            players.SendPacket(GetPacket33Data(ChestName ?? ""));
+            players.SendPacket(GetPacket33Data());
         }
 
         public void SendChestItemAll(byte slotID, Func<TSPlayer, bool> predicate = null)
@@ -571,10 +589,10 @@ namespace Mirages
                     w.BaseStream.Position = 2;
                     w.Write((byte)47);
 
-                    w.Write((short)SignID);
+                    w.Write((short)signID);
                     w.Write((short)X);
                     w.Write((short)Y);
-                    w.Write(SignText ?? "");
+                    w.Write(SignText);
                     w.Write((byte)0);
                     w.Write(TBD);
 
@@ -595,7 +613,7 @@ namespace Mirages
                     w.BaseStream.Position = 2;
                     w.Write((byte)32);
 
-                    w.Write((short)ChestID);
+                    w.Write((short)chestID);
                     w.Write((byte)item.SlotID);
                     w.Write((short)item.Stack);
                     w.Write((byte)item.Prefix);
@@ -609,7 +627,7 @@ namespace Mirages
             }
         }
 
-        byte[] GetPacket33Data(string name)
+        byte[] GetPacket33Data()
         {
             using (var s = new MemoryStream())
             {
@@ -618,14 +636,14 @@ namespace Mirages
                     w.BaseStream.Position = 2;
                     w.Write((byte)33);
 
-                    w.Write((short)ChestID);
+                    w.Write((short)chestID);
                     w.Write((short)X);
                     w.Write((short)Y);
-                    w.Write((byte)name.Length);
+                    w.Write((byte)ChestName.Length);
 
-                    if (name.Length > 0 && name.Length <= 20)
+                    if (ChestName.Length > 0 && ChestName.Length <= 20)
                     {
-                        w.Write(name);
+                        w.Write(ChestName);
                     }
                     var length = (ushort)w.BaseStream.Position;
                     w.BaseStream.Position = 0;
@@ -644,10 +662,10 @@ namespace Mirages
                     w.BaseStream.Position = 2;
                     w.Write((byte)69);
 
-                    w.Write((short)ChestID);
+                    w.Write((short)chestID);
                     w.Write((short)X);
                     w.Write((short)Y);
-                    w.Write(ChestName ?? "");
+                    w.Write(ChestName);
                     w.Write((byte)0);
 
                     var length = (ushort)w.BaseStream.Position;
@@ -668,7 +686,7 @@ namespace Mirages
                     w.Write((byte)80);
 
                     w.Write((byte)0);
-                    w.Write((short)ChestID);
+                    w.Write((short)chestID);
 
                     var length = (ushort)w.BaseStream.Position;
                     w.BaseStream.Position = 0;

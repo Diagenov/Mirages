@@ -372,7 +372,7 @@ namespace Mirages
                 w.Write((short)i.SignID);
                 w.Write((short)i.X);
                 w.Write((short)i.Y);
-                w.Write(i.SignText ?? "");
+                w.Write(i.SignText);
             }
         }
 
@@ -383,7 +383,7 @@ namespace Mirages
                 w.Write((short)i.ChestID);
                 w.Write((short)i.X);
                 w.Write((short)i.Y);
-                w.Write(i.ChestName ?? "");
+                w.Write(i.ChestName);
             }
         }
 
