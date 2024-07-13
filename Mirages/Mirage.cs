@@ -140,6 +140,35 @@ namespace Mirages
             }
         }
 
+        public void SendOriginalAll(Func<TSPlayer, bool> predicate = null)
+        {
+            SendOriginal(predicate == null ?
+                TShock.Players :
+                TShock.Players.Where(i => predicate(i)).ToArray());
+        }
+
+        public void SendOriginal(params TSPlayer[] players)
+        {
+            if (players == null || players.Length == 0 || players.All(i => i == null || !i.ConnectionAlive))
+            {
+                return;
+            }
+            foreach (var i in players.Where(i => i != null && i.ConnectionAlive))
+            {
+                i.SendData(PacketTypes.TileSendSection, null, 
+                    X, 
+                    Y, 
+                    Width + 1, 
+                    Height + 1);
+
+                i.SendData(PacketTypes.TileFrameSection, null, 
+                    Netplay.GetSectionX(X), 
+                    Netplay.GetSectionY(Y), 
+                    Netplay.GetSectionX(X + Width + 1), 
+                    Netplay.GetSectionY(Y + Height + 1));
+            }
+        }
+
         byte[] GetPacket10Data()
         {
             byte[] data;
