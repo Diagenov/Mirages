@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
@@ -14,6 +15,10 @@ namespace WireCensor
     [ApiVersion(2, 1)]
     public class Plugin : TerrariaPlugin
     {
+        static int X = 0;
+        static int Y = 10;
+        static StatusType Type = StatusType.TextShadows | StatusType.TextRight;
+        static string Text = "TTT[c/ff00ff:TTT][i:3737]";
         static List<Mirage> mirages = new List<Mirage>();
 
         public Plugin(Main game) : base(game)
@@ -23,6 +28,8 @@ namespace WireCensor
         public override void Initialize()
         {
             ServerApi.Hooks.NetGetData.Register(this, OnGetData);
+            ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
+            ServerApi.Hooks.GamePostInitialize.Register(this, OnInitialize);
         }
 
         protected override void Dispose(bool disposing)
@@ -30,8 +37,16 @@ namespace WireCensor
             if (disposing)
             {
                 ServerApi.Hooks.NetGetData.Deregister(this, OnGetData);
+                ServerApi.Hooks.ServerLeave.Deregister(this, OnLeave);
+                ServerApi.Hooks.GamePostInitialize.Deregister(this, OnInitialize);
             }
             base.Dispose(disposing);
+        }
+
+        void OnInitialize(EventArgs e)
+        {
+            Commands.ChatCommands.Add(new Command(Ah, "ah"));
+            Commands.ChatCommands.Add(new Command(Oh, "oh"));
         }
 
         void OnGetData(GetDataEventArgs e)
@@ -193,6 +208,155 @@ namespace WireCensor
                 }
                 mirage.SendAll(true);
             }
+        }
+    
+        void OnLeave(LeaveEventArgs e)
+        {
+            var player = TShock.Players[e.Who];
+            if (player == null || !player.ReceivedInfo)
+            {
+                return;
+            }
+            X = 0;
+            Y = 9;
+            Text = "TTTTTT";
+        }
+
+        void Ah(CommandArgs e) // на "тайл" влево
+        {
+            e.Player.SendInfoMessage($"X: {X}, Y: {Y}, Length: {Text.Length}");
+            Hah(e.Player, X, Y, Type, Text, "TTTTTT[i:3737]TTTTTT[i:3737]TTTTTT[i:3737]TTTTTT[i:3737]TTTTTT[i:3737]TTTTTT[i:3737]");
+            //X += 10;
+            Y += 5;
+        }
+
+        void Oh(CommandArgs e)
+        {
+            e.Player.SendInfoMessage($"X: {X}, Y: {Y}, Length: {Text.Length}");
+            Hah(e.Player, X, Y, Type, Text, "TTTTTT[i:3737]TTTTTT[i:3737]TTTTTT[i:3737]TTTTTT[i:3737]TTTTTT[i:3737]TTTTTT[i:3737]");
+            Text += "\nTTTTTT[i:3737]";
+        }
+
+        void Hah(TSPlayer player, int x, int y, StatusType type, params string[] lines) 
+        {
+            if (lines == null || lines.Length == 0 || player == null || !player.ConnectionAlive)
+            {
+                return;
+            }
+            var list = new List<string>();
+
+            foreach (var l in lines)
+            {
+                if (string.IsNullOrWhiteSpace(l))
+                {
+                    list.Add("");
+                    continue;
+                }
+                list.AddRange(l.Split('\n').Select(i => string.IsNullOrWhiteSpace(i) ? "" : i));
+            }
+            if (list.All(l => string.IsNullOrWhiteSpace(l)))
+            {
+                return;
+            }
+            var pureText = "";
+            var length = list.Max(l => l.StatusLineLength(out pureText));
+            var index = list.FindIndex(l => length == l.StatusLineLength(out pureText));
+
+            x *= 8;
+            if (length > 47) //правый край экрана
+            {
+                x = Math.Max(x, length - 47);
+            }
+            if (x + length > 650) //левый край экрана
+            {
+                x = 650 - length;
+            }
+            x = Math.Min(650, Math.Max(x, 0));
+            y = Math.Max(0, Math.Min(46 - list.Count, y));
+
+            if ((8 & (byte)type) == 0 && ((16 | 4) & (byte)type) > 0)
+            {
+                for (int i = 0; i < list.Count; i++)
+                {
+                    if (i == index)
+                    {
+                        continue;
+                    }
+                    var l = length - list[i].StatusLineLength(out string s);
+                    
+                    if ((16 & (byte)type) == 16)
+                    {
+                        l /= 2;
+                    }
+                    list[i] = new string(' ', l) + list[i];
+                }
+            }
+            if (list[index] != pureText) //если в начале текста нет цвета, но в самом тексте он есть, то...
+            {
+                var orig = list[index];
+                var s = "";
+                for (int i = 0; i < orig.Length && orig[i] == pureText[i]; i++)
+                {
+                    s += orig[i];
+                }
+                x += s.StatusLineLength(out pureText);
+            }
+            list[index] += new string(' ', x);
+            var text =
+                new string('\n', y) +
+                string.Join("\n", list);
+
+            player.SendData(PacketTypes.Status, text, 0, ((byte)type & 2) | 1);
+        }
+
+        enum StatusType : byte //сделать поддержку сразу нескольких панелек текста
+        {
+            None = 0,
+            TextShadows = 2,
+            TextLeft = 4,
+            TextRight = 8,
+            TextCenter = 16,
+        }
+    }
+
+    public static class HelpHelp
+    {
+        public static int StatusLineLength(this string text, out string pureText) //стоимость символов считается в знаках табуляции
+        {
+            if (text == "")
+            {
+                pureText = "";
+                return 0;
+            }
+            var orig = text;
+            
+            text = Regex.Replace(text, @"\[c[^:]*:([^]]*)\]", "$1", RegexOptions.IgnoreCase);
+            text = Regex.Replace(text, @"\[[inag](?:\/[sp]\d+){0,2}:\d+\]", "——", RegexOptions.IgnoreCase);
+
+            if ((pureText = text) == "")
+            {
+                return 0;
+            }
+            var oneCount = 0;
+            var twoCount = 0;
+            var threeCount = 0;
+
+            foreach (var i in text)
+            {
+                if (i == ' ')
+                {
+                    oneCount++;
+                }
+                else if (i == '—')
+                {
+                    threeCount++;
+                }
+                else
+                {
+                    twoCount++;
+                }
+            }
+            return oneCount + threeCount + twoCount + ((twoCount + threeCount) / 2) + (twoCount / 15) + (threeCount / 5);
         }
     }
 }
