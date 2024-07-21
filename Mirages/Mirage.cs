@@ -9,7 +9,8 @@ using Terraria;
 using Terraria.ID;
 using TShockAPI;
 using Microsoft.Xna.Framework;
-using static System.Collections.Specialized.BitVector32;
+
+//переопределить некоторые методы из Tile для MirageTile по типу ClearTile и т.д. (для сундуков и табличек)
 
 namespace Mirages
 {
@@ -393,6 +394,18 @@ namespace Mirages
         int chestID = -1;
         string chestName = "";
         public List<SlotItem> ChestContent = new List<SlotItem>();
+
+        public override void ClearEverything()
+        {
+            signID = chestID = -1;
+            base.ClearEverything();
+        }
+
+        public override void ClearTile()
+        {
+            signID = chestID = -1;
+            base.ClearTile();
+        }
 
         public MirageTile(int x, int y) : base(Main.tile[x, y] ?? new Tile())
         {

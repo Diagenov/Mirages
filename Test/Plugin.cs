@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Terraria;
@@ -27,8 +28,9 @@ namespace WireCensor
 
         public override void Initialize()
         {
-            ServerApi.Hooks.NetGetData.Register(this, OnGetData);
+            //ServerApi.Hooks.NetGetData.Register(this, OnGetData);
             ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
+            ServerApi.Hooks.NetGreetPlayer.Register(this, OnGreet);
             ServerApi.Hooks.GamePostInitialize.Register(this, OnInitialize);
         }
 
@@ -36,8 +38,9 @@ namespace WireCensor
         {
             if (disposing)
             {
-                ServerApi.Hooks.NetGetData.Deregister(this, OnGetData);
+                //ServerApi.Hooks.NetGetData.Deregister(this, OnGetData);
                 ServerApi.Hooks.ServerLeave.Deregister(this, OnLeave);
+                ServerApi.Hooks.NetGreetPlayer.Deregister(this, OnGreet);
                 ServerApi.Hooks.GamePostInitialize.Deregister(this, OnInitialize);
             }
             base.Dispose(disposing);
@@ -209,7 +212,27 @@ namespace WireCensor
                 mirage.SendAll(true);
             }
         }
-    
+
+        async void OnGreet(GreetPlayerEventArgs e)
+        {
+            var player = TShock.Players[e.Who];
+            var list = await Task.Run(() => Mirage.GetSections(player));
+
+            if (list == null || list.Count == 0)
+            {
+                return;
+            }
+            foreach (var i in list)
+            {
+                foreach (var j in i)
+                {
+                    j.ClearEverything();
+                }
+                i.Send(false, player);
+                await Task.Delay(100);
+            }
+        }
+
         void OnLeave(LeaveEventArgs e)
         {
             var player = TShock.Players[e.Who];
