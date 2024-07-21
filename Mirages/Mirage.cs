@@ -9,6 +9,7 @@ using Terraria;
 using Terraria.ID;
 using TShockAPI;
 using Microsoft.Xna.Framework;
+using static System.Collections.Specialized.BitVector32;
 
 namespace Mirages
 {
@@ -29,6 +30,14 @@ namespace Mirages
             get => Tiles[x - X, y - Y];
         }
 
+        public Mirage(int sectionX, int sectionY) : 
+            this(new Rectangle(
+                Math.Max(0, Math.Min(sectionX, Main.maxSectionsX - 1)) * 200,
+                Math.Max(0, Math.Min(sectionY, Main.maxSectionsY - 1)) * 150, 
+                200, 
+                150))
+        {
+        }
         public Mirage(int x, int y, int width, int height) : this(new Rectangle(x, y, width, height))
         {
         }
@@ -42,6 +51,29 @@ namespace Mirages
                 {
                     Tiles[i, j] = new MirageTile(i + X, j + Y);
                 }
+        }
+
+        public static List<Mirage> GetSections(TSPlayer player, bool unsentSections = true)
+        {
+            if (player == null || !player.ConnectionAlive)
+            {
+                return null;
+            }
+            var client = Netplay.Clients[player.Index];
+
+            if (client == null || !client.IsConnected() || !client.IsActive)
+            {
+                return null;
+            }
+            var list = new List<Mirage>();
+
+            for (int i = 0; i < Main.maxSectionsX; i++)
+                for (int j = 0; j < Main.maxSectionsY; j++)
+                {
+                    if (!unsentSections == client.TileSections[i, j])
+                        list.Add(new Mirage(i, j));
+                }
+            return list;
         }
 
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();

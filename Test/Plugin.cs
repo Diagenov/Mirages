@@ -305,8 +305,14 @@ namespace WireCensor
 
             for (int y = startY; y < endY; y++)
             {
-                var line = list.Where(i => i.y <= y && y < i.y + i.arr.Length); //все панельки, у которых есть текст на линии y
-                
+                var line = list.Where(i => i.y <= y && y < i.y + i.arr.Length).OrderBy(i => i.x); //все панельки, у которых есть текст на линии y
+                var max = line.Max(i => i.arr.Length);
+
+                for (int i = 0; i < max; i++)
+                {
+
+                }
+
                 line.Select(i => i.arr[y - i.y]); //все тексты на линии y
             }
         }
