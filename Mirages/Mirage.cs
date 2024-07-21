@@ -54,29 +54,6 @@ namespace Mirages
                 }
         }
 
-        public static List<Mirage> GetSections(TSPlayer player, bool unsentSections = true)
-        {
-            if (player == null || !player.ConnectionAlive)
-            {
-                return null;
-            }
-            var client = Netplay.Clients[player.Index];
-
-            if (client == null || !client.IsConnected() || !client.IsActive)
-            {
-                return null;
-            }
-            var list = new List<Mirage>();
-
-            for (int i = 0; i < Main.maxSectionsX; i++)
-                for (int j = 0; j < Main.maxSectionsY; j++)
-                {
-                    if (!unsentSections == client.TileSections[i, j])
-                        list.Add(new Mirage(i, j));
-                }
-            return list;
-        }
-
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
         public IEnumerator<MirageTile> GetEnumerator() => GetList().GetEnumerator();
 

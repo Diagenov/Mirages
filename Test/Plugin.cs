@@ -216,20 +216,34 @@ namespace WireCensor
         async void OnGreet(GreetPlayerEventArgs e)
         {
             var player = TShock.Players[e.Who];
-            var list = await Task.Run(() => Mirage.GetSections(player));
+            var client = Netplay.Clients[e.Who];
 
-            if (list == null || list.Count == 0)
+            if (player == null || client == null)
             {
                 return;
             }
-            foreach (var i in list)
+            for (int x = 0; x < Main.maxSectionsX; x++)
             {
-                foreach (var j in i)
+                for (int y = 0; y < Main.maxSectionsY; y++)
                 {
-                    j.ClearEverything();
+                    if (!player.ConnectionAlive || !client.IsConnected())
+                    {
+                        return;
+                    }
+                    if (client.TileSections[x, y])
+                    {
+                        continue;
+                    }
+                    var i = new Mirage(x, y);
+
+                    foreach (var j in i)
+                    {
+                        j.ClearEverything();
+                    }
+                    i.Send(false, player);
+                    
+                    await Task.Delay(100);
                 }
-                i.Send(false, player);
-                await Task.Delay(100);
             }
         }
 
