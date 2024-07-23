@@ -31,15 +31,20 @@ namespace Mirages
             }
             var socket = Netplay.Clients[player.Index].Socket;
             var callback = (SocketSendCallback)Netplay.Clients[player.Index].ServerWriteCallBack;
-
-            Hooks.NetMessage.InvokeSendBytes(
-                socket,
-                data,
-                0,
-                data.Length,
-                callback,
-                null,
-                player.Index);
+            try
+            {
+                Hooks.NetMessage.InvokeSendBytes(
+                    socket,
+                    data,
+                    0,
+                    data.Length,
+                    callback,
+                    null,
+                    player.Index);
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         }
 
         internal static void Write(this BinaryWriter w, Mirage mirage, int x, int y, int width, int height, TileChangeType type)

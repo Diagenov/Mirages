@@ -30,7 +30,7 @@ namespace WireCensor
         {
             //ServerApi.Hooks.NetGetData.Register(this, OnGetData);
             ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
-            ServerApi.Hooks.NetGreetPlayer.Register(this, OnGreet);
+            //ServerApi.Hooks.NetGreetPlayer.Register(this, OnGreet);
             ServerApi.Hooks.GamePostInitialize.Register(this, OnInitialize);
         }
 
@@ -40,7 +40,7 @@ namespace WireCensor
             {
                 //ServerApi.Hooks.NetGetData.Deregister(this, OnGetData);
                 ServerApi.Hooks.ServerLeave.Deregister(this, OnLeave);
-                ServerApi.Hooks.NetGreetPlayer.Deregister(this, OnGreet);
+                //ServerApi.Hooks.NetGreetPlayer.Deregister(this, OnGreet);
                 ServerApi.Hooks.GamePostInitialize.Deregister(this, OnInitialize);
             }
             base.Dispose(disposing);
@@ -280,7 +280,7 @@ namespace WireCensor
         }
     }
 
-    public enum StatusType : byte //сделать поддержку сразу нескольких панелек текста
+    public enum StatusType : byte 
     {
         None = 0,
         TextShadows = 2,
@@ -310,51 +310,114 @@ namespace WireCensor
             {
                 if (string.IsNullOrWhiteSpace(l))
                 {
-                    list.Add("");
+                    if (list.Count > 0)
+                        list.Add("");
                     continue;
                 }
-                list.AddRange(l.Split('\n').Select(i => string.IsNullOrWhiteSpace(i) ? "" : i));
+                foreach (var j in l.Split('\n'))
+                {
+                    if (string.IsNullOrWhiteSpace(j))
+                    {
+                        if (list.Count > 0)
+                            list.Add("");
+                        continue;
+                    }
+                    list.Add(j);
+                }
             }
-            list.RemoveAll(l => string.IsNullOrWhiteSpace(l));
+            for (int i = list.Count - 1; i >= 0 && !string.IsNullOrWhiteSpace(list[i]); i--)
+            {
+                list.RemoveAt(i);
+            }
         }
 
-        public StatusText(params StatusText[] statuses)
+        public StatusText(StatusText status1, StatusText status2, StatusType type)
         {
-            if (statuses == null || statuses.Length == 0 || statuses.All(i => i.list.Count == 0))
+            if (status1 == status2)
+            {
+                status2 = null;
+            }
+            var statuses = new List<StatusText>(2)
+            {
+                status1, status2
+            };
+            statuses.RemoveAll(i => i == null || i.list.Count == 0);
+
+            if (statuses.Count == 0)
             {
                 return;
             }
-            if (statuses.Length == 1)
+            this.type = type; // не делать ориентировку текста?
+
+            if (statuses.Count == 1)
             {
-                this.list = statuses[0].list;
+                list = statuses[0].list;
                 x = statuses[0].x;
                 y = statuses[0].y;
-                type = statuses[0].type;
                 return;
             }
-            var list = statuses.Select(i => new StatusTextHelp(i)).OrderBy(i => i.y);
-
-            var startY = list.First().y;
-            var endY = list.Last().y + list.Last().arr.Length;
-
             x = statuses.Min(i => i.x);
-            y = startY;
+            y = statuses.Min(i => i.y);
 
+            var listY = statuses.Select(i => new StatusTextHelp(i)).OrderBy(i => i.y);
+            var listX = listY.OrderBy(i => i.x);
+            
+            var startY = listY.First().y;
+            var endY = listY.Last().y + listY.Last().arr.Length;
+            
+            var length = listX.First().length;
+            var delta = Math.Max(0, listX.Last().x - listX.First().x - length);
+
+            var lowX = listX.First();
+            var highX = listX.Last();
+            
             for (int y = startY; y < endY; y++)
             {
-                var line = list.Where(i => i.y <= y && y < i.y + i.arr.Length).OrderBy(i => i.x); //все панельки, у которых есть текст на линии y
-                var max = line.Max(i => i.arr.Length);
-
-                for (int i = 0; i < max; i++)
+                var s = "";
+                if (lowX.y <= y && y < lowX.y + lowX.arr.Length)
                 {
-
+                    s = lowX.arr[y - lowX.y];
                 }
+                if (highX.y <= y && y < highX.y + highX.arr.Length)
+                {
+                    if (s == "")
+                    {
+                        s = highX.arr[y - highX.y] + new string(' ', length + delta);
+                    }
+                    if ()
+                    {
 
-                line.Select(i => i.arr[y - i.y]); //все тексты на линии y
+                    }
+                    if ()
+                    {
+
+                    }
+                }
+                var line = listY.Where(i => i.y <= y && y < i.y + i.arr.Length).OrderBy(i => i.x); //все панельки, у которых есть текст на линии y
+
+                // учесть пустые строки
+                // учесть строки, где есть дальняя по x панелька
+                // учесть ориентировку текста на центр (сложно) и на право (просто)
+
+                line.Select(i => ); //все тексты на линии y
             }
         }
 
-        string GetText(out int x, out int y, out int length, out string[] arr)
+        public void Spawn(TSPlayer player)
+        {
+            if (player == null || !player.ConnectionAlive)
+            {
+                return;
+            }
+            if (list.Count == 0)
+            {
+                player.SendData(PacketTypes.Status, "", 0, 1);
+                return;
+            }
+            player.SendData(PacketTypes.Status, GetText(out int x, out int y, out int length, out string[] arr), 0, ((byte)type & 2) | 1);
+        }
+
+        string GetText(out int x, out int y, out int length, out string[] arr, bool set_spaces = true)
         {
             arr = list.ToArray();
             x = this.x;
@@ -402,26 +465,15 @@ namespace WireCensor
                 }
                 x += s.StatusLineLength(out pureText);
             }
-            arr[index] += new string(' ', x);
+            if (set_spaces)
+            {
+                arr[index] += new string(' ', x);
+            }
             return 
                 new string('\n', y) +
                 string.Join("\n", arr);
         }
 
-        public void Spawn(TSPlayer player)
-        {
-            if (player == null || !player.ConnectionAlive)
-            {
-                return;
-            }
-            if (list.Count == 0)
-            {
-                player.SendData(PacketTypes.Status, "", 0, 1);
-                return;
-            }
-            player.SendData(PacketTypes.Status, GetText(out int x, out int y, out int length, out string[] arr), 0, ((byte)type & 2) | 1);
-        }
-    
         struct StatusTextHelp
         {
             public int x;
@@ -431,7 +483,7 @@ namespace WireCensor
 
             public StatusTextHelp(StatusText i)
             {
-                i.GetText(out x, out y, out length, out arr);
+                i.GetText(out x, out y, out length, out arr, false);
             }
         }
     }
