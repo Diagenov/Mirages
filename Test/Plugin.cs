@@ -263,7 +263,7 @@ namespace WireCensor
         {
             e.Player.SendInfoMessage($"X: {X}, Y: {Y}, Length: {Text.Length}");
             Hah(e.Player, X, Y, Type, Text, "TTTTTT[i:3737]TTTTTT[i:3737]TTTTTT[i:3737]TTTTTT[i:3737]TTTTTT[i:3737]TTTTTT[i:3737]");
-            //X += 10;
+            X += 10;
             Y += 5;
         }
 
@@ -295,6 +295,22 @@ namespace WireCensor
         int x;
         int y;
         StatusType type;
+
+        int headIndex;
+        int headLength;
+
+        bool RightAlignment
+        {
+            get => (8 & (byte)type) == 8 || ((16 | 4) & (byte)type) == 0;
+        }
+        bool CenterAlignment
+        {
+            get => ((8 | 16) & (byte)type) == 16;
+        }
+        bool LeftAlignment
+        {
+            get => ((8 | 16 | 4) & (byte)type) == 4;
+        }
 
         public StatusText(int x, int y, StatusType type, params string[] lines)
         {
@@ -329,9 +345,10 @@ namespace WireCensor
             {
                 list.RemoveAt(i);
             }
+            Handle();
         }
 
-        public StatusText(StatusText status1, StatusText status2, StatusType type)
+        public StatusText(StatusText status1, StatusText status2, StatusType type) // сделать на основе этого соединение нескольких панелек (от low xy до high xy)
         {
             if (status1 == status2)
             {
@@ -359,13 +376,13 @@ namespace WireCensor
             x = statuses.Min(i => i.x);
             y = statuses.Min(i => i.y);
 
-            var listY = statuses.Select(i => new StatusTextHelp(i)).OrderBy(i => i.y);
+            var listY = statuses.OrderBy(i => i.y);
             var listX = listY.OrderBy(i => i.x);
             
             var startY = listY.First().y;
-            var endY = listY.Last().y + listY.Last().arr.Length;
+            var endY = listY.Last().y + listY.Last().list.Count;
             
-            var length = listX.First().length;
+            var length = listX.First().headLength;
             var delta = Math.Max(0, listX.Last().x - listX.First().x - length);
 
             var lowX = listX.First();
@@ -374,32 +391,38 @@ namespace WireCensor
             for (int y = startY; y < endY; y++)
             {
                 var s = "";
-                if (lowX.y <= y && y < lowX.y + lowX.arr.Length)
+                if (lowX.y <= y && y < lowX.y + lowX.list.Count)
                 {
-                    s = lowX.arr[y - lowX.y];
+                    s = lowX.list[y - lowX.y];
                 }
-                if (highX.y <= y && y < highX.y + highX.arr.Length)
+                if (highX.y <= y && y < highX.y + highX.list.Count)
                 {
-                    if (s == "")
+                    if (string.IsNullOrWhiteSpace(s))
                     {
-                        s = highX.arr[y - highX.y] + new string(' ', length + delta);
+                        s = highX.list[y - highX.y] + new string(' ', length + delta);
                     }
-                    if ()
+                    else if (lowX.LeftAlignment)
+                    {
+                        
+                    }
+                    else if (lowX.CenterAlignment)
                     {
 
                     }
-                    if ()
+                    else
                     {
-
+                        s = highX.list[y - highX.y] + new string(' ', delta);
                     }
                 }
-                var line = listY.Where(i => i.y <= y && y < i.y + i.arr.Length).OrderBy(i => i.x); //все панельки, у которых есть текст на линии y
+                if (string.IsNullOrWhiteSpace(s))
+                {
+                    list.Add("");
+                    continue;
+                }
+                list.Add(s);
 
-                // учесть пустые строки
                 // учесть строки, где есть дальняя по x панелька
                 // учесть ориентировку текста на центр (сложно) и на право (просто)
-
-                line.Select(i => ); //все тексты на линии y
             }
         }
 
@@ -409,81 +432,60 @@ namespace WireCensor
             {
                 return;
             }
-            if (list.Count == 0)
+            if (this.list.Count == 0)
             {
                 player.SendData(PacketTypes.Status, "", 0, 1);
                 return;
             }
-            player.SendData(PacketTypes.Status, GetText(out int x, out int y, out int length, out string[] arr), 0, ((byte)type & 2) | 1);
+            var list = this.list.ToArray();
+            list[headIndex] += new string(' ', x);
+
+            player.SendData(PacketTypes.Status, new string('\n', y) + string.Join("\n", list), 0, ((byte)type & 2) | 1);
         }
 
-        string GetText(out int x, out int y, out int length, out string[] arr, bool set_spaces = true)
+        void Handle()
         {
-            arr = list.ToArray();
-            x = this.x;
-            y = this.y;
-
             var pureText = "";
-            var len = length = arr.Max(l => l.StatusLineLength(out pureText));
-            var index = Array.FindIndex(arr, l => len == l.StatusLineLength(out pureText));
+            headLength = list.Max(l => l.StatusLineLength(out pureText));
+            headIndex = list.FindIndex(l => headLength == l.StatusLineLength(out pureText));
 
-            if (length > 47) //правый край экрана
+            if (headLength > 47) //правый край экрана
             {
-                x = Math.Max(x, length - 47);
+                x = Math.Max(x, headLength - 47);
             }
-            if (x + length > 650) //левый край экрана
+            if (x + headLength > 650) //левый край экрана
             {
-                x = 650 - length;
+                x = 650 - headLength;
             }
             x = Math.Min(650, Math.Max(x, 0));
-            y = Math.Max(0, Math.Min(46 - arr.Length, y));
+            y = Math.Max(0, Math.Min(46 - list.Count, y));
 
-            if ((8 & (byte)type) == 0 && ((16 | 4) & (byte)type) > 0)
+            if (!RightAlignment)
             {
-                for (int i = 0; i < arr.Length; i++)
+                for (int i = 0; i < list.Count; i++)
                 {
-                    if (i == index)
+                    if (i == headIndex)
                     {
                         continue;
                     }
-                    var l = length - arr[i].StatusLineLength(out string s);
+                    var l = headLength - list[i].StatusLineLength(out string s);
 
-                    if ((16 & (byte)type) == 16)
+                    if (CenterAlignment)
                     {
                         l /= 2;
                     }
-                    arr[i] = new string(' ', l) + arr[i];
+                    list[i] = new string(' ', l) + list[i];
                 }
             }
-            if (arr[index] != pureText) //если в начале текста нет цвета, но в самом тексте он есть, то...
+            if (list[headIndex] != pureText) //если в начале текста нет цвета, но в самом тексте он есть, то...
             {
-                var orig = arr[index];
+                var orig = list[headIndex];
                 var s = "";
                 for (int i = 0; i < orig.Length && orig[i] == pureText[i]; i++)
                 {
                     s += orig[i];
                 }
                 x += s.StatusLineLength(out pureText);
-            }
-            if (set_spaces)
-            {
-                arr[index] += new string(' ', x);
-            }
-            return 
-                new string('\n', y) +
-                string.Join("\n", arr);
-        }
-
-        struct StatusTextHelp
-        {
-            public int x;
-            public int y;
-            public int length;
-            public string[] arr;
-
-            public StatusTextHelp(StatusText i)
-            {
-                i.GetText(out x, out y, out length, out arr, false);
             }
         }
     }
